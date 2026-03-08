@@ -38,8 +38,12 @@ client.on('ready', () => {
 });
 
 client.on('message', message => {
-    if (message.body.toLowerCase() === 'oi') {
-        message.reply('Olá! Eu sou o Bot Acadêmico da turma, rodando 100% na nuvem! ☁️🤖');
+    // Isso vai fazer o robô dedurar na tela preta tudo o que ele ouvir
+    console.log('🗣️ Mensagem recebida: ' + message.body);
+
+    // Agora ele responde se a palavra 'oi' estiver em qualquer lugar da frase
+    if (message.body.toLowerCase().includes('oi')) {
+        message.reply('Olá! Eu sou o Bot Acadêmico da turma do Arthur, rodando 100% na nuvem! ☁️🤖');
     }
 });
 
