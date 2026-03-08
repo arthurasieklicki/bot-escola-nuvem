@@ -1,4 +1,4 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const express = require('express');
 const pino = require('pino');
 
@@ -16,14 +16,20 @@ app.listen(port, () => {
 
 // 2. O NOVO CÉREBRO DO ROBÔ (Motor Baileys - Super Leve)
 async function connectToWhatsApp () {
-    // Salva a conexão para não pedir QR Code toda hora
+    // A CHAVE MESTRA: Busca a versão oficial mais recente do WhatsApp Web na internet
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`🌐 Usando WhatsApp Web versão: ${version.join('.')}`);
+
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
     const sock = makeWASocket({
+        version, // Passa a versão oficial para o servidor aceitar a conexão
         auth: state,
-        printQRInTerminal: false, // Vamos usar o nosso link customizado
-        browser: ['Ubuntu', 'Chrome', '20.0.04'], // A MÁSCARA: Engana a segurança do WhatsApp
-        logger: pino({ level: 'silent' }) // Desliga os avisos chatos do sistema
+        printQRInTerminal: false,
+        browser: ['Ubuntu', 'Chrome', '110.0.5481.177'], // Máscara moderna
+        logger: pino({ level: 'silent' }),
+        connectTimeoutMs: 60000, // Dá 1 minuto de tolerância para a internet do servidor
+        defaultQueryTimeoutMs: 0
     });
 
     sock.ev.on('connection.update', (update) => {
@@ -31,7 +37,7 @@ async function connectToWhatsApp () {
         
         if(qr) {
             console.log('====================================================');
-            console.log('📱 ATENÇÃO: NOVO MOTOR LEVE ATIVADO!');
+            console.log('📱 ATENÇÃO: MOTOR LEVE E ATUALIZADO ATIVADO!');
             console.log('🔗 CLIQUE NO LINK ABAIXO PARA LER O QR CODE:');
             const linkQrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(qr);
             console.log('👉 ' + linkQrCode);
@@ -40,12 +46,12 @@ async function connectToWhatsApp () {
 
         if(connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            // Agora ele dedura o motivo exato da queda na tela preta
-            console.log('🔌 Conexão caiu. Motivo:', lastDisconnect.error?.message || lastDisconnect.error);
+            console.log('🔌 Conexão caiu. Motivo:', lastDisconnect.error?.message || 'Falha de rede');
             
             if(shouldReconnect) {
-                console.log('♻️ Tentando reconectar...');
-                connectToWhatsApp();
+                console.log('♻️ Respirando... Tentando reconectar em 5 segundos...');
+                // Aguarda 5 segundos antes de tentar de novo para não ser bloqueado pelo WhatsApp
+                setTimeout(connectToWhatsApp, 5000); 
             }
         } else if(connection === 'open') {
             console.log('🚀 TUDO PRONTO! O Bot está voando na nuvem livre de travamentos!');
@@ -56,9 +62,7 @@ async function connectToWhatsApp () {
 
     sock.ev.on('messages.upsert', async m => {
         const msg = m.messages[0];
-        // Ignora mensagens enviadas por você mesmo ou de sistema
         if(!msg.key.fromMe && m.type === 'notify') {
-            // Captura o texto seja de qual formato for
             const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
             
             if (texto) {
