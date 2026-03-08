@@ -1,16 +1,13 @@
 {
   "name": "bot-escola",
   "version": "1.0.0",
-  "description": "Bot WhatsApp para Feira de Ciências",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
-    "@whiskeysockets/baileys": "^6.7.0",
-    "qrcode-terminal": "^0.12.0",
-    "pino": "^8.14.1",
+    "whatsapp-web.js": "^1.23.0",
     "googleapis": "^128.0.0"
   }
 }
