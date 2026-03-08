@@ -1,5 +1,4 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
 const express = require('express');
 
 // 1. O SISTEMA ANTI-SONO (Mantém o servidor acordado)
@@ -18,17 +17,24 @@ app.listen(port, () => {
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Essencial para rodar na nuvem gratuita
+        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Essencial para rodar na nuvem gratuita do Render
     }
 });
 
 client.on('qr', (qr) => {
-    console.log('📱 ATENÇÃO: Escaneie o QR Code abaixo com o WhatsApp do Bot:');
-    qrcode.generate(qr, { small: true });
+    console.log('====================================================');
+    console.log('📱 ATENÇÃO: O Render bagunça o desenho no terminal.');
+    console.log('🔗 CLIQUE NO LINK ABAIXO PARA VER O QR CODE PERFEITO:');
+    
+    // Transforma o código em um link de imagem gerada na hora
+    const linkQrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(qr);
+    
+    console.log('👉 ' + linkQrCode);
+    console.log('====================================================');
 });
 
 client.on('ready', () => {
-    console.log('🚀 TUDO PRONTO! O Bot está conectado ao WhatsApp!');
+    console.log('🚀 TUDO PRONTO! O Bot do Arthur está conectado ao WhatsApp!');
 });
 
 client.on('message', message => {
