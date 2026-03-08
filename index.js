@@ -22,6 +22,7 @@ async function connectToWhatsApp () {
     const sock = makeWASocket({
         auth: state,
         printQRInTerminal: false, // Vamos usar o nosso link customizado
+        browser: ['Ubuntu', 'Chrome', '20.0.04'], // A MÁSCARA: Engana a segurança do WhatsApp
         logger: pino({ level: 'silent' }) // Desliga os avisos chatos do sistema
     });
 
@@ -39,8 +40,11 @@ async function connectToWhatsApp () {
 
         if(connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            console.log('Conexão caiu. Reconectando...', shouldReconnect);
+            // Agora ele dedura o motivo exato da queda na tela preta
+            console.log('🔌 Conexão caiu. Motivo:', lastDisconnect.error?.message || lastDisconnect.error);
+            
             if(shouldReconnect) {
+                console.log('♻️ Tentando reconectar...');
                 connectToWhatsApp();
             }
         } else if(connection === 'open') {
