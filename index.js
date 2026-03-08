@@ -1,56 +1,71 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const express = require('express');
+const pino = require('pino');
 
 // 1. O SISTEMA ANTI-SONO (Mantém o servidor acordado)
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.get('/', (req, res) => {
-    res.send('🤖 Bot do Arthur está acordado e operando na nuvem!');
+    res.send('🤖 Bot da escola está acordado e operando na nuvem!');
 });
 
 app.listen(port, () => {
     console.log(`📡 Radar anti-sono ativado na porta ${port}`);
 });
 
-// 2. O CÉREBRO DO ROBÔ (Agora em modo "dieta de memória")
-const client = new Client({
-    authStrategy: new LocalAuth(),
-    puppeteer: {
-        args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage', // Essencial: Impede que o Chrome lote a memória RAM do servidor Linux
-            '--disable-gpu',           // Desliga o processamento de vídeo (não precisamos, não temos tela)
-            '--no-first-run'
-        ]
-    }
-});
-
-client.on('qr', (qr) => {
-    console.log('====================================================');
-    console.log('📱 ATENÇÃO: O Render bagunça o desenho no terminal.');
-    console.log('🔗 CLIQUE NO LINK ABAIXO PARA VER O QR CODE PERFEITO:');
+// 2. O NOVO CÉREBRO DO ROBÔ (Motor Baileys - Super Leve)
+async function connectToWhatsApp () {
+    // Salva a conexão para não pedir QR Code toda hora
+    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
     
-    // Transforma o código em um link de imagem gerada na hora
-    const linkQrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(qr);
-    
-    console.log('👉 ' + linkQrCode);
-    console.log('====================================================');
-});
+    const sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false, // Vamos usar o nosso link customizado
+        logger: pino({ level: 'silent' }) // Desliga os avisos chatos do sistema
+    });
 
-client.on('ready', () => {
-    console.log('🚀 TUDO PRONTO! O Bot do Arthur está conectado ao WhatsApp!');
-});
+    sock.ev.on('connection.update', (update) => {
+        const { connection, lastDisconnect, qr } = update;
+        
+        if(qr) {
+            console.log('====================================================');
+            console.log('📱 ATENÇÃO: NOVO MOTOR LEVE ATIVADO!');
+            console.log('🔗 CLIQUE NO LINK ABAIXO PARA LER O QR CODE:');
+            const linkQrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(qr);
+            console.log('👉 ' + linkQrCode);
+            console.log('====================================================');
+        }
 
-client.on('message', message => {
-    // Isso vai fazer o robô dedurar na tela preta tudo o que ele ouvir
-    console.log('🗣️ Mensagem recebida: ' + message.body);
+        if(connection === 'close') {
+            const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
+            console.log('Conexão caiu. Reconectando...', shouldReconnect);
+            if(shouldReconnect) {
+                connectToWhatsApp();
+            }
+        } else if(connection === 'open') {
+            console.log('🚀 TUDO PRONTO! O Bot está voando na nuvem livre de travamentos!');
+        }
+    });
 
-    // Agora ele responde se a palavra 'oi' estiver em qualquer lugar da frase
-    if (message.body.toLowerCase().includes('oi')) {
-        message.reply('Olá! Eu sou o Bot Acadêmico da turma, rodando 100% na nuvem! ☁️🤖');
-    }
-});
+    sock.ev.on('creds.update', saveCreds);
 
-client.initialize();
+    sock.ev.on('messages.upsert', async m => {
+        const msg = m.messages[0];
+        // Ignora mensagens enviadas por você mesmo ou de sistema
+        if(!msg.key.fromMe && m.type === 'notify') {
+            // Captura o texto seja de qual formato for
+            const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+            
+            if (texto) {
+                console.log('🗣️ Mensagem recebida: ' + texto);
+
+                if (texto.toLowerCase().includes('oi')) {
+                    await sock.sendMessage(msg.key.remoteJid, { text: 'Olá! Eu sou o Bot Acadêmico da turma, rodando 100% na nuvem! ☁️🤖 E agora com motor turbo!' });
+                }
+            }
+        }
+    });
+}
+
+connectToWhatsApp();
