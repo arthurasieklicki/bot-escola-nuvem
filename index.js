@@ -7,7 +7,7 @@ const { google } = require('googleapis');
 // ============================================================================
 // ⚙️ CONFIGURAÇÕES DA PLANILHA DO GOOGLE
 // ============================================================================
-const SPREADSHEET_ID = 'COLE_AQUI_O_ID_DA_SUA_PLANILHA'; // <-- COLOQUE SEU ID AQUI
+const SPREADSHEET_ID = '194u0HgyLbBTkOVL1hrILXarjv0AugCxRtgm6jN9YIG8'; // <-- COLOQUE SEU ID AQUI
 
 const auth = new google.auth.GoogleAuth({
     keyFile: './credenciais.json',
