@@ -7,8 +7,8 @@ const { google } = require('googleapis');
 // ============================================================================
 // ⚙️ CONFIGURAÇÕES DA PLANILHA E DO WHATSAPP
 // ============================================================================
-const SPREADSHEET_ID = '194u0HgyLbBTkOVL1hrILXarjv0AugCxRtgm6jN9YIG8'; 
-const NUMERO_DO_BOT = '5546999999999'; // <--5546984155591 (Somente números, com 55 e DDD)
+const SPREADSHEET_ID = 'COLE_AQUI_O_NOVO_ID_DA_PLANILHA_CONVERTIDA'; 
+const NUMERO_DO_BOT = '5546999999999'; // <-- COLOQUE O NÚMERO DO BOT COM 55 E DDD
 
 const auth = new google.auth.GoogleAuth({
     keyFile: './credenciais.json',
@@ -66,13 +66,15 @@ async function anotarPresenca(matricula) {
 }
 
 // ============================================================================
-// SISTEMA ANTI-SONO E MOTOR DO ROBÔ COM PAREAMENTO
+// SISTEMA ANTI-SONO E MOTOR DO ROBÔ COM PAREAMENTO SEGURO
 // ============================================================================
 const app = express();
 const port = process.env.PORT || 3000;
 
-app.get('/', (req, res) => res.send('🤖 Bot conectado ao Google Sheets e blindado!'));
+app.get('/', (req, res) => res.send('🤖 Bot conectado ao Google Sheets!'));
 app.listen(port, () => console.log(`📡 Radar ativado na porta ${port}`));
+
+let codigoSolicitado = false; // A TRAVA DE SEGURANÇA: Impede que o código fique expirando
 
 async function connectToWhatsApp () {
     const { version } = await fetchLatestBaileysVersion();
@@ -82,12 +84,17 @@ async function connectToWhatsApp () {
         version,
         auth: state,
         printQRInTerminal: false,
-        browser: Browsers.ubuntu('Chrome'), // Ubuntu disfarça melhor para pareamento
-        logger: pino({ level: 'silent' })
+        browser: Browsers.ubuntu('Chrome'),
+        logger: pino({ level: 'silent' }),
+        connectTimeoutMs: 60000,
     });
 
-    // 🚀 O NOVO BYPASS: CÓDIGO DE PAREAMENTO EM VEZ DE QR CODE
-    if (!sock.authState.creds.registered) {
+    // 🚀 O NOVO BYPASS: CÓDIGO DE PAREAMENTO ÚNICO
+    if (!sock.authState.creds.registered && !codigoSolicitado) {
+        codigoSolicitado = true; // Trava ativada: não vai pedir de novo sozinho
+        
+        console.log('⏳ Preparando para gerar o código. Deixe o celular no jeito...');
+        
         setTimeout(async () => {
             try {
                 const numeroLimpo = NUMERO_DO_BOT.replace(/[^0-9]/g, '');
@@ -95,15 +102,14 @@ async function connectToWhatsApp () {
                 code = code?.match(/.{1,4}/g)?.join("-") || code;
                 
                 console.log('\n====================================================');
-                console.log('🚨 ESQUEÇA O QR CODE! O RENDER FOI BLOQUEADO PARA QR.');
-                console.log(`🔑 SEU CÓDIGO DE PAREAMENTO É: ${code}`);
-                console.log('👉 Vá no celular do Bot > WhatsApp > Aparelhos Conectados > Vincular com Número de Telefone');
-                console.log('👉 Digite o código acima para conectar instantaneamente!');
+                console.log('🚨 O SEU CÓDIGO DE PAREAMENTO ESTÁ PRONTO!');
+                console.log(`🔑 DIGITE NO CELULAR AGORA: ${code}`);
                 console.log('====================================================\n');
             } catch (err) {
-                console.log('❌ Erro ao gerar código de pareamento. Verifique se o número do bot está correto.');
+                console.log('❌ Erro ao gerar código. Verifique se o número do bot está correto.');
+                codigoSolicitado = false; // Destrava se der erro para tentar de novo
             }
-        }, 3000);
+        }, 5000); // Espera 5 segundos para a rede estabilizar
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -118,6 +124,7 @@ async function connectToWhatsApp () {
                 setTimeout(connectToWhatsApp, 5000); 
             } else {
                 fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
+                codigoSolicitado = false; // Destrava se precisar limpar a sessão
                 setTimeout(connectToWhatsApp, 5000);
             }
         } else if(connection === 'open') {
