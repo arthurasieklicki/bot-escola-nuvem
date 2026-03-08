@@ -7,7 +7,7 @@ const { google } = require('googleapis');
 // ============================================================================
 // ⚙️ CONFIGURAÇÕES DA PLANILHA DO GOOGLE (Preencha aqui!)
 // ============================================================================
-const SPREADSHEET_ID = 'COLE_AQUI_O_ID_DA_SUA_PLANILHA'; // <-- SUBSTITUA ISSO PELO SEU ID
+const SPREADSHEET_ID = '1BpMrAwfe-2bh8bXBRmY66ojTUvPi594W'; // <-- SUBSTITUA ISSO PELO SEU ID
 const NOME_DA_ABA = 'Página1'; // Nome da aba lá embaixo na planilha (geralmente Página1)
 
 // Autenticação com o crachá do Google (O arquivo secreto que você salvou no Render)
