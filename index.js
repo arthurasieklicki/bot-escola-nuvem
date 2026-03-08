@@ -13,11 +13,17 @@ app.listen(port, () => {
     console.log(`📡 Radar anti-sono ativado na porta ${port}`);
 });
 
-// 2. O CÉREBRO DO ROBÔ
+// 2. O CÉREBRO DO ROBÔ (Agora em modo "dieta de memória")
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox'] // Essencial para rodar na nuvem gratuita do Render
+        args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage', // Essencial: Impede que o Chrome lote a memória RAM do servidor Linux
+            '--disable-gpu',           // Desliga o processamento de vídeo (não precisamos, não temos tela)
+            '--no-first-run'
+        ]
     }
 });
 
@@ -43,7 +49,7 @@ client.on('message', message => {
 
     // Agora ele responde se a palavra 'oi' estiver em qualquer lugar da frase
     if (message.body.toLowerCase().includes('oi')) {
-        message.reply('Olá! Eu sou o Bot Acadêmico da turma do Arthur, rodando 100% na nuvem! ☁️🤖');
+        message.reply('Olá! Eu sou o Bot Acadêmico da turma, rodando 100% na nuvem! ☁️🤖');
     }
 });
 
