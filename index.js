@@ -1,14 +1,9 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const express = require('express');
-const pino = require('pino');
-const fs = require('fs');
 const { google } = require('googleapis');
 
-// ============================================================================
-// ⚙️ CONFIGURAÇÕES DA PLANILHA E DO WHATSAPP
-// ============================================================================
-const SPREADSHEET_ID = 'COLE_AQUI_O_NOVO_ID_DA_PLANILHA_CONVERTIDA'; 
-const NUMERO_DO_BOT = '5546999999999'; // <-- COLOQUE O NÚMERO DO BOT COM 55 E DDD
+// === CONFIGURAÇÃO DO GOOGLE (Coloque o ID da Planilha Convertida!) ===
+const SPREADSHEET_ID = '194u0HgyLbBTkOVL1hrILXarjv0AugCxRtgm6jN9YIG8'; 
 
 const auth = new google.auth.GoogleAuth({
     keyFile: './credenciais.json',
@@ -16,7 +11,6 @@ const auth = new google.auth.GoogleAuth({
 });
 const sheets = google.sheets({ version: 'v4', auth });
 
-// 🧠 FUNÇÃO 1: Lê a aba 'Alunos' e descobre quem está mandando mensagem
 async function buscarAluno(telefoneZap) {
     try {
         const response = await sheets.spreadsheets.values.get({
@@ -30,147 +24,94 @@ async function buscarAluno(telefoneZap) {
             let telPlanilha = linhas[i][2]; 
             if (!telPlanilha) continue;
             let telLimpo = String(telPlanilha).replace(/\D/g, '');
-            let ultimos8 = telLimpo.slice(-8);
-
-            if (telefoneZap.includes(ultimos8)) {
+            if (telefoneZap.includes(telLimpo.slice(-8))) {
                 return { matricula: linhas[i][0], nome: linhas[i][1] };
             }
         }
         return null;
-    } catch (erro) {
-        console.error('❌ Erro ao buscar aluno:', erro.message);
-        return null;
-    }
+    } catch (erro) { return null; }
 }
 
-// ✍️ FUNÇÃO 2: Salva a presença na aba 'Entregas'
 async function anotarPresenca(matricula) {
     try {
         const dataHora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
         const idEntrega = 'PR-' + Date.now().toString().slice(-5);
-
         await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
             range: 'Entregas!A:F',
             valueInputOption: 'USER_ENTERED',
-            requestBody: {
-                values: [[idEntrega, dataHora, matricula, 'Frequência/Presença', '-', 'Registrada ✅']]
-            }
+            requestBody: { values: [[idEntrega, dataHora, matricula, 'Frequência/Presença', '-', 'Registrada ✅']] }
         });
-        console.log(`📝 Sucesso! Presença da matrícula ${matricula} salva na aba Entregas!`);
         return true;
-    } catch (erro) {
-        console.error('❌ Erro ao escrever na planilha:', erro.message);
-        return false;
-    }
+    } catch (erro) { return false; }
 }
 
-// ============================================================================
-// SISTEMA ANTI-SONO E MOTOR DO ROBÔ COM PAREAMENTO SEGURO
-// ============================================================================
+// === SISTEMA ANTI-SONO ===
 const app = express();
 const port = process.env.PORT || 3000;
-
-app.get('/', (req, res) => res.send('🤖 Bot conectado ao Google Sheets!'));
+app.get('/', (req, res) => res.send('🤖 Bot conectado e travado na nuvem!'));
 app.listen(port, () => console.log(`📡 Radar ativado na porta ${port}`));
 
-let codigoSolicitado = false; // A TRAVA DE SEGURANÇA: Impede que o código fique expirando
-
-async function connectToWhatsApp () {
-    const { version } = await fetchLatestBaileysVersion();
-    const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-    
-    const sock = makeWASocket({
-        version,
-        auth: state,
-        printQRInTerminal: false,
-        browser: Browsers.ubuntu('Chrome'),
-        logger: pino({ level: 'silent' }),
-        connectTimeoutMs: 60000,
-    });
-
-    // 🚀 O NOVO BYPASS: CÓDIGO DE PAREAMENTO ÚNICO
-    if (!sock.authState.creds.registered && !codigoSolicitado) {
-        codigoSolicitado = true; // Trava ativada: não vai pedir de novo sozinho
-        
-        console.log('⏳ Preparando para gerar o código. Deixe o celular no jeito...');
-        
-        setTimeout(async () => {
-            try {
-                const numeroLimpo = NUMERO_DO_BOT.replace(/[^0-9]/g, '');
-                let code = await sock.requestPairingCode(numeroLimpo);
-                code = code?.match(/.{1,4}/g)?.join("-") || code;
-                
-                console.log('\n====================================================');
-                console.log('🚨 O SEU CÓDIGO DE PAREAMENTO ESTÁ PRONTO!');
-                console.log(`🔑 DIGITE NO CELULAR AGORA: ${code}`);
-                console.log('====================================================\n');
-            } catch (err) {
-                console.log('❌ Erro ao gerar código. Verifique se o número do bot está correto.');
-                codigoSolicitado = false; // Destrava se der erro para tentar de novo
-            }
-        }, 5000); // Espera 5 segundos para a rede estabilizar
+// === MOTOR DO WHATSAPP (Com trava de memória e auto-reconectar tipo PM2) ===
+const client = new Client({
+    authStrategy: new LocalAuth(),
+    puppeteer: {
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--no-first-run',
+            '--no-zygote',
+            '--single-process', // Isso obriga o servidor gratuito a não estourar a memória
+            '--disable-extensions'
+        ]
     }
+});
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, lastDisconnect } = update;
+client.on('qr', qr => {
+    console.log('\n====================================================');
+    console.log('🔗 CLIQUE NO LINK ABAIXO PARA O QR CODE (Igual antes!):');
+    console.log('👉 https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=' + encodeURIComponent(qr));
+    console.log('====================================================\n');
+});
 
-        if(connection === 'close') {
-            const code = lastDisconnect.error?.output?.statusCode;
-            const shouldReconnect = code !== DisconnectReason.loggedOut;
-            console.log('🔌 Conexão caiu. Código:', code);
-            
-            if(shouldReconnect) {
-                setTimeout(connectToWhatsApp, 5000); 
+client.on('ready', () => {
+    console.log('🚀 TUDO PRONTO E TRAVADO! O Bot conectou ao WhatsApp e ao Google!');
+});
+
+// A TRAVA ESTILO PM2: Se cair, ele levanta na mesma hora
+client.on('disconnected', (reason) => {
+    console.log('🔌 Conexão sofreu queda:', reason);
+    console.log('🔄 O guardião interno está reiniciando o motor...');
+    client.initialize(); 
+});
+
+client.on('message', async msg => {
+    if(msg.fromMe) return;
+    const texto = msg.body.toLowerCase().trim();
+    const numeroRemetente = msg.from.replace('@c.us', '');
+    
+    if (texto === 'oi' || texto === 'olá') {
+        const aluno = await buscarAluno(numeroRemetente);
+        if (aluno) {
+            await msg.reply(`Fala, *${aluno.nome}*! 😎 Eu sou o Bot Acadêmico!\n\nSua matrícula é a *${aluno.matricula}*. Digite *PRESENTE* para eu registrar a sua frequência.`);
+        } else {
+            await msg.reply('Olá! Eu sou o Bot Acadêmico! 🤖\nNão encontrei este número cadastrado. Fale com a equipe!');
+        }
+    }
+    else if (texto === 'presente') {
+        const aluno = await buscarAluno(numeroRemetente);
+        if (aluno) {
+            await msg.reply('⏳ Conectando aos servidores do Google...');
+            const sucesso = await anotarPresenca(aluno.matricula);
+            if (sucesso) {
+                await msg.reply(`✅ Boa, *${aluno.nome}*! Presença salva na aba Entregas! +10 XP pra você! 🎮`);
             } else {
-                fs.rmSync('./auth_info_baileys', { recursive: true, force: true });
-                codigoSolicitado = false; // Destrava se precisar limpar a sessão
-                setTimeout(connectToWhatsApp, 5000);
-            }
-        } else if(connection === 'open') {
-            console.log('🚀 TUDO PRONTO! O Bot está voando na nuvem e lendo a sua planilha!');
-        }
-    });
-
-    sock.ev.on('creds.update', saveCreds);
-
-    sock.ev.on('messages.upsert', async m => {
-        const msg = m.messages[0];
-        if(!msg.key.fromMe && m.type === 'notify') {
-            const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
-            const numeroRemetente = msg.key.remoteJid.replace('@s.whatsapp.net', '');
-            
-            if (texto) {
-                console.log(`🗣️ Mensagem recebida: ${texto}`);
-                const textoLimpo = texto.toLowerCase().trim();
-
-                if (textoLimpo === 'oi' || textoLimpo === 'olá') {
-                    const aluno = await buscarAluno(numeroRemetente);
-                    if (aluno) {
-                        await sock.sendMessage(msg.key.remoteJid, { 
-                            text: `Fala, *${aluno.nome}*! 😎 Eu sou o Bot Acadêmico da turma!\n\nSua matrícula é a *${aluno.matricula}*. Digite a palavra *PRESENTE* para eu registrar a sua frequência de hoje lá no sistema.` 
-                        });
-                    } else {
-                        await sock.sendMessage(msg.key.remoteJid, { 
-                            text: 'Olá! Eu sou o Bot Acadêmico! 🤖\n\nHmmm... Eu procurei na aba de Alunos, mas não encontrei este número cadastrado. Fale com a equipe para te adicionar!' 
-                        });
-                    }
-                }
-                else if (textoLimpo === 'presente') {
-                    const aluno = await buscarAluno(numeroRemetente);
-                    if (aluno) {
-                        await sock.sendMessage(msg.key.remoteJid, { text: '⏳ Conectando aos servidores do Google...' });
-                        const sucesso = await anotarPresenca(aluno.matricula);
-                        if (sucesso) {
-                            await sock.sendMessage(msg.key.remoteJid, { text: `✅ Boa, *${aluno.nome}*! Sua presença foi registrada com sucesso na aba de Entregas! +10 XP pra você! 🎮` });
-                        } else {
-                            await sock.sendMessage(msg.key.remoteJid, { text: '❌ Ops! Deu um erro ao tentar salvar no Google. Avise o administrador!' });
-                        }
-                    }
-                }
+                await msg.reply('❌ Ops! Deu erro ao salvar no Google.');
             }
         }
-    });
-}
+    }
+});
 
-connectToWhatsApp();
+client.initialize();
